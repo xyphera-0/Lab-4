@@ -46,7 +46,8 @@ int32_t TachR_count,TachR,TachR_sum,TachR_sum_count,TachR_avg; // Right wheel
     // The rest are the intermediate variables used to assemble TachL/R_avg
 
 float ki = 0;
-float speed_val, dir_val, desired_speed, direc_val;
+float speed_val, dir_val, desired_speed, direc_val, different_speed, speed_error_left,speed_error_leftsum;
+uint8_t min,max;
 
 uint8_t runControl = 0; // Flag to denote that 100ms has passed and control should be run.
 
@@ -77,25 +78,40 @@ int main( void ) {    /** Main Function ****/
 //                        Convert the speed potentiometer measurement to a desired speed 16384
                           desired_speed = 16384*((3.3 - 0.0)/(speed_val - 0.0));
 //                        Ensure the desired speed follows the control specifications below
+                          different_speed= desired_speed*((.5*149)/74.5);
 //                        Convert the steering potentiometer measurement to a differential speed
-                          direc_val=16384*((3.3 - 0.0)/(dire_val - 0.0 ));
+                          direc_val=16384*((3.3 - 0.0)/(dir_val - 0.0 ));
 //                            following the specifications below.
 //
 //                        <-- Start Wheel Speed Control -->
-//                        For Each Wheel:
+//                        For Each Wheel: left
 //                            calculate desired wheel speed as desired speed +/- differential speed
-                          if(desired_speed <=)
+                          desired_speed= desired_speed + different_speed;
+                          if(desired_speed <= min) {
 //                            if |desired wheel speed| is less than minimum value,
 //                                set the desired wheel speed and compare value to 0
+                              desired_speed=0;
+                              Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_4, desired_speed);
+
 //                            otherwise:
+                          }else{
+                              if(desired_speed < 0){
+                                  GPIO_setOutputHighOnPin(GPIO_PORT_P5, GPIO_PIN5);
+                              }else if(desired_speed >= 0) {
+                                  GPIO_setOutputLowOnPin(GPIO_PORT_P5, GPIO_PIN5);
+
+                              }
 //                                set wheel direction depending on sign (+/-) of desired wheel speed
 //                                calculate the current speed error from the encoder and |desired wheel speed|
+                              speed_error_leftsum = 1500000/TachL_count;
 //                                             (use trendline equation from figure for current speed)
 //                                add current speed error to an "error sum" variable (tracking integral error)
+                              speed_error_leftsum += speed_error_left
 //                                calculate the corrected speed using the discrete equation above (should be >= 0)
 //                                convert the corrected speed (duty cycle) into a compare value
 //                                enforce minimum and maximum limits on the compare value
 //                            apply the compare value
+                          }
 //                        <-- End Wheel Speed Control -->
                    }
             }
