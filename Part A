@@ -37,7 +37,7 @@ Timer_A_CaptureModeConfig TA3_ccr1; // Encoder Left
 float ki = 0; // integral control gain
 float speed_val; //   speed  // ADC value from potetiometer (left)
 float dir_val;   // steering // ADC value from potetiometer (right)
-float desired_speed, direc_val, speed_error_left, speed_error_leftsum;
+float desired_speed, diff_speed, min_diff_speed, max_diff_speed, direc_val, speed_error_left, speed_error_leftsum;
 
 
 // Encoder total events
@@ -69,7 +69,7 @@ int main( void ) {    /** Main Function ****/
 
                 //Trigger the ADC to read both potentiometers
                 ADC14_enableConversion();
-                ADC14_toggleConversionTrigger()
+                ADC14_toggleConversionTrigger();
                 speed_val = ADC14_getResult(ADC_MEM0);
                 dir_val = ADC14_getResult(ADC_MEM1);
 
@@ -81,7 +81,7 @@ int main( void ) {    /** Main Function ****/
                 diff_speed = desired_speed*((0.5*149)/(149/2));
 
                 min_diff_speed = (desired_speed*0.1)*((0.5*149)/(149/2));
-                max_diff_speed = (desired_speed*0.5)*(149/(2*0.200))
+                max_diff_speed = (desired_speed*0.5)*(149/(2*0.200));
 
                 //<-- Start Wheel Speed Control -->
                 //For Each Wheel: left
@@ -96,13 +96,13 @@ int main( void ) {    /** Main Function ****/
                         GPIO_setOutputLowOnPin(GPIO_PORT_P5, GPIO_PIN5);
                     }
                     speed_error_left = 1500000/TachL_count;
-                    speed_error_leftsum += speed_error_left
+                    speed_error_leftsum += speed_error_left;
                 }
 
 
         }
     }
-
+}
 
 void ADCInit(){
     // Add your ADC initialization code here.
