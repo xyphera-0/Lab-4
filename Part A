@@ -34,13 +34,16 @@ Timer_A_CompareModeConfig TA0_ccr4; // PWM Left
 Timer_A_CaptureModeConfig TA3_ccr0; // Encoder Right
 Timer_A_CaptureModeConfig TA3_ccr1; // Encoder Left
 
+float ki = 0; // integral control gain
+float speed_val; //   speed  // ADC value from potetiometer (left)
+float dir_val;   // steering // ADC value from potetiometer (right)
 
 // Encoder total events
 uint32_t enc_total_L,enc_total_R;
 // Speed measurement variables
 // Note that "Tach" stands for "Tachometer," or a device used to measure rotational speed
-int32_t TachL_count,TachL,TachL_sum,TachL_sum_count,TachL_avg; // Left wheel
-int32_t TachR_count,TachR,TachR_sum,TachR_sum_count,TachR_avg; // Right wheel
+int32_t TachL_count, TachL, TachL_sum, TachL_sum_count, TachL_avg; // Left wheel
+int32_t TachR_count, TachR, TachR_sum, TachR_sum_count, TachR_avg; // Right wheel
     // TachL,TachR are equivalent to enc_counts from Activity 10/Lab 3
     // TachL/R_avg is the averaged TachL/R value after every 12 encoder measurements
     // The rest are the intermediate variables used to assemble TachL/R_avg
@@ -55,18 +58,44 @@ int main( void ) {    /** Main Function ****/
 
     __delay_cycles(24e6);
 
+    GPIO_setOutputHighOnPin(GPIO_PORT_P3,GPIO_PIN6|GPIO_PIN7);
+
     while( 1 ) {
         if(runControl){    // If 100 ms has passed
             runControl = 0;    // Reset the 100 ms flag
             // Control routine: Explicitly follow pseudocode from Lab document
 
+                //Trigger the ADC to read both potentiometers
+                ADC14_enableConversion();
+                ADC14_toggleConversionTrigger()
+                speed_val = ADC14_getResult(ADC_MEM0);
+                dir_val = ADC14_getResult(ADC_MEM1);
+
+                //Convert the speed potentiometer measurement to a desired speed
+                desired_speed = 16384*((3.3 - 0.0)/(speed_val - 0.0));
+                //Ensure the desired speed follows the control specifications below
+                //Convert the steering potentiometer measurement to a differential speed following the specifications below.
+                diff_speed = desired_speed((0.5*149)/(149/2));
+
+                //left
+
+
+
         }
     }
-}    /** End Main Function ****/   
+
 
 void ADCInit(){
     // Add your ADC initialization code here.
     //  Don't forget the GPIO, either here or in GPIOInit()!!
+    ADC14_enableModule();
+    ADC14_initModule(ADC_CLOCKSOURCE_SMCLK,ADC_PREDIVIDER_4 ,ADC_DIVIDER_1 , ADC_NOROUTE);
+    ADC14_setResolution(ADC_14BIT);
+    ADC14_configureConversionMemory(ADC_MEM0, ADC_VREFPOS_AVCC_VREFNEG_VSS, ADC_INPUT_A9, false); //4.4
+    ADC14_configureConversionMemory(ADC_MEM1, ADC_VREFPOS_AVCC_VREFNEG_VSS, ADC_INPUT_A12, false); //4.1
+    //ADC14_configureSingleSampleMode(ADC_MEM0, false);
+    ADC14_configureMultiSequenceMode(ADC_MEM0, ADC_MEM1, true);
+    ADC14_enableSampleTimer(ADC_AUTOMATIC_ITERATION);
 }
 
 void GPIOInit(){
@@ -79,6 +108,11 @@ void GPIOInit(){
 
     GPIO_setOutputLowOnPin(GPIO_PORT_P5,GPIO_PIN4|GPIO_PIN5);   // Motors set to forward
     GPIO_setOutputLowOnPin(GPIO_PORT_P3,GPIO_PIN6|GPIO_PIN7);   // Motors are OFF
+        //potentiometer
+//    GPIO_setAsInputPin(GPIO_PORT_P4,GPIO_PIN1|GPIO_PIN4); //4.4 left (speed), 4.1 to right(steering)
+    GPIO_setAsPeripheralModuleFunctionInputPin(GPIO_PORT_P4, GPIO_PIN4, GPIO_TERTIARY_MODULE_FUNCTION); //4.4 left (speed)
+    GPIO_setAsPeripheralModuleFunctionInputPin(GPIO_PORT_P4, GPIO_PIN1, GPIO_TERTIARY_MODULE_FUNCTION); //4.1 to right (steering)
+
 }
 
 void TimerInit(){
@@ -87,21 +121,25 @@ void TimerInit(){
     TA0cfg.clockSourceDivider = TIMER_A_CLOCKSOURCE_DIVIDER_1;
     TA0cfg.timerPeriod = 999;
     Timer_A_configureUpMode(TIMER_A0_BASE,&TA0cfg);
+
     // Configure TA0.CCR3 for PWM output, Right Motor
     TA0_ccr3.compareRegister = TIMER_A_CAPTURECOMPARE_REGISTER_3;
     TA0_ccr3.compareOutputMode = TIMER_A_OUTPUTMODE_RESET_SET;
     TA0_ccr3.compareValue = 0;
     Timer_A_initCompare(TIMER_A0_BASE,&TA0_ccr3);
+
     // Configure TA0.CCR4 for PWM output, Left Motor
     TA0_ccr4.compareRegister = TIMER_A_CAPTURECOMPARE_REGISTER_4;
     TA0_ccr4.compareOutputMode = TIMER_A_OUTPUTMODE_RESET_SET;
     TA0_ccr4.compareValue = 0;
     Timer_A_initCompare(TIMER_A0_BASE,&TA0_ccr4);
+
     // Configure Encoder timer in continuous mode
     TA3cfg.clockSource = TIMER_A_CLOCKSOURCE_SMCLK;
     TA3cfg.clockSourceDivider = TIMER_A_CLOCKSOURCE_DIVIDER_1;
     TA3cfg.timerInterruptEnable_TAIE = TIMER_A_TAIE_INTERRUPT_ENABLE;
     Timer_A_configureContinuousMode(TIMER_A3_BASE,&TA3cfg);
+
     // Configure TA3.CCR0 for Encoder measurement, Right Encoder
     TA3_ccr0.captureRegister = TIMER_A_CAPTURECOMPARE_REGISTER_0;
     TA3_ccr0.captureMode = TIMER_A_CAPTUREMODE_RISING_EDGE;
@@ -109,6 +147,7 @@ void TimerInit(){
     TA3_ccr0.synchronizeCaptureSource = TIMER_A_CAPTURE_SYNCHRONOUS;
     TA3_ccr0.captureInterruptEnable = TIMER_A_CAPTURECOMPARE_INTERRUPT_ENABLE;
     Timer_A_initCapture(TIMER_A3_BASE,&TA3_ccr0);
+
     // Configure TA3.CCR1 for Encoder measurement, Left Encoder
     TA3_ccr1.captureRegister = TIMER_A_CAPTURECOMPARE_REGISTER_1;
     TA3_ccr1.captureMode = TIMER_A_CAPTUREMODE_RISING_EDGE;
@@ -116,9 +155,11 @@ void TimerInit(){
     TA3_ccr1.synchronizeCaptureSource = TIMER_A_CAPTURE_SYNCHRONOUS;
     TA3_ccr1.captureInterruptEnable = TIMER_A_CAPTURECOMPARE_INTERRUPT_ENABLE;
     Timer_A_initCapture(TIMER_A3_BASE,&TA3_ccr1);
+
     // Register the Encoder interrupt
     Timer_A_registerInterrupt(TIMER_A3_BASE,TIMER_A_CCR0_INTERRUPT,Encoder_ISR);
     Timer_A_registerInterrupt(TIMER_A3_BASE,TIMER_A_CCRX_AND_OVERFLOW_INTERRUPT,Encoder_ISR);
+
     // Configure 10 Hz timer
     TA2cfg.clockSource = TIMER_A_CLOCKSOURCE_SMCLK;
     TA2cfg.clockSourceDivider = TIMER_A_CLOCKSOURCE_DIVIDER_64;
@@ -126,6 +167,7 @@ void TimerInit(){
     TA2cfg.timerPeriod = 37499;
     Timer_A_configureUpMode(TIMER_A2_BASE,&TA2cfg);
     Timer_A_registerInterrupt(TIMER_A2_BASE,TIMER_A_CCRX_AND_OVERFLOW_INTERRUPT,T2_100ms_ISR);
+
     // Start all the timers
     Timer_A_startCounter(TIMER_A0_BASE,TIMER_A_UP_MODE);
     Timer_A_startCounter(TIMER_A2_BASE,TIMER_A_UP_MODE);
