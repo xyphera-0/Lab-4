@@ -1,7 +1,8 @@
+
 ////////////////////////////////////////////////////////////////////////
 //** ENGR-2350 Lab 4 Template
-//** NAME: Gizelle Ojeda-Ericksen
-//** RIN: 662065015
+//** NAME: Xiomara Pelaez Cuacua
+//** RIN: 662068537
 ////////////////////////////////////////////////////////////////////////
 //**
 //** README!!!!!
@@ -34,20 +35,21 @@ Timer_A_CompareModeConfig TA0_ccr4; // PWM Left
 Timer_A_CaptureModeConfig TA3_ccr0; // Encoder Right
 Timer_A_CaptureModeConfig TA3_ccr1; // Encoder Left
 
+float ki = .001; // integral control gain
+float speed_val; //   speed  // ADC value from potetiometer (left)
+float dir_val;   // steering // ADC value from potetiometer (right)
+float desired_speed, diff_speed, min_diff_speed, max_diff_speed, direc_val, speed_error_left, speed_error_leftsum,correct_speed, compare_value_left;
+
 
 // Encoder total events
 uint32_t enc_total_L,enc_total_R;
 // Speed measurement variables
 // Note that "Tach" stands for "Tachometer," or a device used to measure rotational speed
-int32_t TachL_count,TachL,TachL_sum,TachL_sum_count,TachL_avg; // Left wheel
-int32_t TachR_count,TachR,TachR_sum,TachR_sum_count,TachR_avg; // Right wheel
+int32_t TachL_count, TachL, TachL_sum, TachL_sum_count, TachL_avg; // Left wheel
+int32_t TachR_count, TachR, TachR_sum, TachR_sum_count, TachR_avg; // Right wheel
     // TachL,TachR are equivalent to enc_counts from Activity 10/Lab 3
     // TachL/R_avg is the averaged TachL/R value after every 12 encoder measurements
     // The rest are the intermediate variables used to assemble TachL/R_avg
-
-float ki = 0;
-float speed_val, dir_val, desired_speed, direc_val, different_speed, speed_error_left,speed_error_leftsum;
-uint8_t min,max;
 
 uint8_t runControl = 0; // Flag to denote that 100ms has passed and control should be run.
 
@@ -59,80 +61,68 @@ int main( void ) {    /** Main Function ****/
 
     __delay_cycles(24e6);
 
+    GPIO_setOutputHighOnPin(GPIO_PORT_P3,GPIO_PIN6|GPIO_PIN7);
+    printf("Lab 4 Part a \r\n");
     while( 1 ) {
         if(runControl){    // If 100 ms has passed
             runControl = 0;    // Reset the 100 ms flag
             // Control routine: Explicitly follow pseudocode from Lab document
-//            Enforce a startup delay of 1 second
-            (__delay_cycles(24e6));
-//                Turn on the motors
-//
-//                Infinite while loop:
-            while(1){
-                   if(runControl) {//If 100 ms has passed:
-//
-//                        Trigger the ADC to read both potentiometers
-                           ADC14_enableConversion();
-                           speed_val = ADC14_getResult(ADC_MEM0);
-                          dir_val = ADC14_getResult(ADC_MEM1);
-//                        Convert the speed potentiometer measurement to a desired speed 16384
-                          desired_speed = 16384*((3.3 - 0.0)/(speed_val - 0.0));
-//                        Ensure the desired speed follows the control specifications below
-                          different_speed= desired_speed*((.5*149)/74.5);
-//                        Convert the steering potentiometer measurement to a differential speed
-                          direc_val=16384*((3.3 - 0.0)/(dir_val - 0.0 ));
-//                            following the specifications below.
-//
-//                        <-- Start Wheel Speed Control -->
-//                        For Each Wheel: left
-//                            calculate desired wheel speed as desired speed +/- differential speed
-                          desired_speed= desired_speed + different_speed;
-                          if(desired_speed <= min) {
-//                            if |desired wheel speed| is less than minimum value,
-//                                set the desired wheel speed and compare value to 0
-                              desired_speed=0;
-                              Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_4, desired_speed);
 
-//                            otherwise:
-                          }else{
-                              if(desired_speed < 0){
-                                  GPIO_setOutputHighOnPin(GPIO_PORT_P5, GPIO_PIN5);
-                              }else if(desired_speed >= 0) {
-                                  GPIO_setOutputLowOnPin(GPIO_PORT_P5, GPIO_PIN5);
+                //Trigger the ADC to read both potentiometers
+                ADC14_enableConversion();
+                ADC14_toggleConversionTrigger();
+                speed_val = ADC14_getResult(ADC_MEM0);
+                dir_val = ADC14_getResult(ADC_MEM1);
 
-                              }
-//                                set wheel direction depending on sign (+/-) of desired wheel speed
-//                                calculate the current speed error from the encoder and |desired wheel speed|
-                              speed_error_leftsum = 1500000/TachL_count;
-//                                             (use trendline equation from figure for current speed)
-//                                add current speed error to an "error sum" variable (tracking integral error)
-                              speed_error_leftsum += speed_error_left
-//                                calculate the corrected speed using the discrete equation above (should be >= 0)
-//                                convert the corrected speed (duty cycle) into a compare value
-//                                enforce minimum and maximum limits on the compare value
-//                            apply the compare value
-                          }
-//                        <-- End Wheel Speed Control -->
-                   }
-            }
+                //Convert the speed potentiometer measurement to a desired speed
+                desired_speed = 16384*((3.3 - 0.0)/(speed_val - 0.0));
+                //Ensure the desired speed follows the control specifications below
+                direc_val=16384*((3.3 - 0.0)/(dir_val - 0.0 ));
+                //Convert the steering potentiometer measurement to a differential speed following the specifications below.
+                diff_speed = desired_speed*((0.5*149)/(149/2));
+
+                min_diff_speed = .1*65535;
+                max_diff_speed = (desired_speed*0.5)*(149/(2*0.200));
+
+                //<-- Start Wheel Speed Control -->
+                //For Each Wheel: left
+                desired_speed = desired_speed + diff_speed;
+                if(desired_speed <= min_diff_speed){
+                    desired_speed = 0;
+                    Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_4, desired_speed);
+                }else{
+                    if(desired_speed > 0) {
+                        GPIO_setOutputLowOnPin(GPIO_PORT_P5, GPIO_PIN4);
+                    }else if(desired_speed > 0){
+                        GPIO_setOutputHighOnPin(GPIO_PORT_P5, GPIO_PIN4);
+                    }
+                    speed_error_left = 1500000/TachL_count;
+                    speed_error_leftsum += speed_error_left;
+                    correct_speed=desired_speed + (ki*speed_error_leftsum);
+                    compare_value_left=speed_error_left*1000;
+                    if(compare_value_left < (.10*1000)) {
+                        Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_4, (.10*1000));
+                    }else if(compare_value_left > (.9*1000)) {
+                        Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_4, (.90*1000));
+                    }
+                }
+
 
         }
     }
-}    /** End Main Function ****/   
+}
 
 void ADCInit(){
     // Add your ADC initialization code here.
-    ADC14_enableModule();
-    ADC14_initModule(ADC_CLOCKSOURCE_SMCLK,ADC_PREDIVIDER_4, ADC_DIVIDER_1, ADC_NOROUTE);
-    ADC14_setResolution(ADC_14BIT);
-    ADC14_configureConversionMemory(ADC_MEM0,ADC_VREFPOS_AVCC_VREFNEG_VSS,ADC_INPUT_A0, false);
-    ADC14_configureConversionMemory(ADC_MEM1,ADC_VREFPOS_AVCC_VREFNEG_VSS,ADC_INPUT_A0, false);
-    ADC14_configureMultiSequenceMode(ADC_MEM0,ADC_MEM1,false);
-    ADC14_toggleConversionTrigger();
-    ADC14_enableSampleTimer(ADC_AUTOMATIC_ITERATION);
     //  Don't forget the GPIO, either here or in GPIOInit()!!
-    GPIO_setAsPeripheralModuleFunctionInputPin(GPIO_PORT_P4, GPIO_PIN4,GPIO_TERTIARY_MODULE_FUNCTION); //4.4
-    GPIO_setAsPeripheralModuleFunctionInputPin(GPIO_PORT_P6, GPIO_PIN1,GPIO_TERTIARY_MODULE_FUNCTION); //4.1
+    ADC14_enableModule();
+    ADC14_initModule(ADC_CLOCKSOURCE_SMCLK,ADC_PREDIVIDER_4 ,ADC_DIVIDER_1 , ADC_NOROUTE);
+    ADC14_setResolution(ADC_14BIT);
+    ADC14_configureConversionMemory(ADC_MEM0, ADC_VREFPOS_AVCC_VREFNEG_VSS, ADC_INPUT_A9, false); //4.4
+    ADC14_configureConversionMemory(ADC_MEM1, ADC_VREFPOS_AVCC_VREFNEG_VSS, ADC_INPUT_A12, false); //4.1
+    //ADC14_configureSingleSampleMode(ADC_MEM0, false);
+    ADC14_configureMultiSequenceMode(ADC_MEM0, ADC_MEM1, true);
+    ADC14_enableSampleTimer(ADC_AUTOMATIC_ITERATION);
 }
 
 void GPIOInit(){
@@ -145,9 +135,10 @@ void GPIOInit(){
 
     GPIO_setOutputLowOnPin(GPIO_PORT_P5,GPIO_PIN4|GPIO_PIN5);   // Motors set to forward
     GPIO_setOutputLowOnPin(GPIO_PORT_P3,GPIO_PIN6|GPIO_PIN7);   // Motors are OFF
-    //potentiomter
-   // GPIO_setAsInputPin(GPIO_PORT_P4,GPIO_PIN1); //direction right
-//    GPIO_setAsInputPin(GPIO_PORT_P4,GPIO_PIN4); //speed left
+        //potentiometer
+//    GPIO_setAsInputPin(GPIO_PORT_P4,GPIO_PIN1|GPIO_PIN4); //4.4 left (speed), 4.1 to right(steering)
+    GPIO_setAsPeripheralModuleFunctionInputPin(GPIO_PORT_P4, GPIO_PIN4, GPIO_TERTIARY_MODULE_FUNCTION); //4.4 left (speed)
+    GPIO_setAsPeripheralModuleFunctionInputPin(GPIO_PORT_P4, GPIO_PIN1, GPIO_TERTIARY_MODULE_FUNCTION); //4.1 to right (steering)
 
 }
 
@@ -157,21 +148,25 @@ void TimerInit(){
     TA0cfg.clockSourceDivider = TIMER_A_CLOCKSOURCE_DIVIDER_1;
     TA0cfg.timerPeriod = 999;
     Timer_A_configureUpMode(TIMER_A0_BASE,&TA0cfg);
+
     // Configure TA0.CCR3 for PWM output, Right Motor
     TA0_ccr3.compareRegister = TIMER_A_CAPTURECOMPARE_REGISTER_3;
     TA0_ccr3.compareOutputMode = TIMER_A_OUTPUTMODE_RESET_SET;
     TA0_ccr3.compareValue = 0;
     Timer_A_initCompare(TIMER_A0_BASE,&TA0_ccr3);
+
     // Configure TA0.CCR4 for PWM output, Left Motor
     TA0_ccr4.compareRegister = TIMER_A_CAPTURECOMPARE_REGISTER_4;
     TA0_ccr4.compareOutputMode = TIMER_A_OUTPUTMODE_RESET_SET;
     TA0_ccr4.compareValue = 0;
     Timer_A_initCompare(TIMER_A0_BASE,&TA0_ccr4);
+
     // Configure Encoder timer in continuous mode
     TA3cfg.clockSource = TIMER_A_CLOCKSOURCE_SMCLK;
     TA3cfg.clockSourceDivider = TIMER_A_CLOCKSOURCE_DIVIDER_1;
     TA3cfg.timerInterruptEnable_TAIE = TIMER_A_TAIE_INTERRUPT_ENABLE;
     Timer_A_configureContinuousMode(TIMER_A3_BASE,&TA3cfg);
+
     // Configure TA3.CCR0 for Encoder measurement, Right Encoder
     TA3_ccr0.captureRegister = TIMER_A_CAPTURECOMPARE_REGISTER_0;
     TA3_ccr0.captureMode = TIMER_A_CAPTUREMODE_RISING_EDGE;
@@ -179,6 +174,7 @@ void TimerInit(){
     TA3_ccr0.synchronizeCaptureSource = TIMER_A_CAPTURE_SYNCHRONOUS;
     TA3_ccr0.captureInterruptEnable = TIMER_A_CAPTURECOMPARE_INTERRUPT_ENABLE;
     Timer_A_initCapture(TIMER_A3_BASE,&TA3_ccr0);
+
     // Configure TA3.CCR1 for Encoder measurement, Left Encoder
     TA3_ccr1.captureRegister = TIMER_A_CAPTURECOMPARE_REGISTER_1;
     TA3_ccr1.captureMode = TIMER_A_CAPTUREMODE_RISING_EDGE;
@@ -186,9 +182,11 @@ void TimerInit(){
     TA3_ccr1.synchronizeCaptureSource = TIMER_A_CAPTURE_SYNCHRONOUS;
     TA3_ccr1.captureInterruptEnable = TIMER_A_CAPTURECOMPARE_INTERRUPT_ENABLE;
     Timer_A_initCapture(TIMER_A3_BASE,&TA3_ccr1);
+
     // Register the Encoder interrupt
     Timer_A_registerInterrupt(TIMER_A3_BASE,TIMER_A_CCR0_INTERRUPT,Encoder_ISR);
     Timer_A_registerInterrupt(TIMER_A3_BASE,TIMER_A_CCRX_AND_OVERFLOW_INTERRUPT,Encoder_ISR);
+
     // Configure 10 Hz timer
     TA2cfg.clockSource = TIMER_A_CLOCKSOURCE_SMCLK;
     TA2cfg.clockSourceDivider = TIMER_A_CLOCKSOURCE_DIVIDER_64;
@@ -196,6 +194,7 @@ void TimerInit(){
     TA2cfg.timerPeriod = 37499;
     Timer_A_configureUpMode(TIMER_A2_BASE,&TA2cfg);
     Timer_A_registerInterrupt(TIMER_A2_BASE,TIMER_A_CCRX_AND_OVERFLOW_INTERRUPT,T2_100ms_ISR);
+
     // Start all the timers
     Timer_A_startCounter(TIMER_A0_BASE,TIMER_A_UP_MODE);
     Timer_A_startCounter(TIMER_A2_BASE,TIMER_A_UP_MODE);
