@@ -37,6 +37,8 @@ Timer_A_CaptureModeConfig TA3_ccr1; // Encoder Left
 float ki = 0; // integral control gain
 float speed_val; //   speed  // ADC value from potetiometer (left)
 float dir_val;   // steering // ADC value from potetiometer (right)
+float desired_speed, direc_val, speed_error_left, speed_error_leftsum;
+
 
 // Encoder total events
 uint32_t enc_total_L,enc_total_R;
@@ -74,11 +76,28 @@ int main( void ) {    /** Main Function ****/
                 //Convert the speed potentiometer measurement to a desired speed
                 desired_speed = 16384*((3.3 - 0.0)/(speed_val - 0.0));
                 //Ensure the desired speed follows the control specifications below
+                direc_val=16384*((3.3 - 0.0)/(dir_val - 0.0 ));
                 //Convert the steering potentiometer measurement to a differential speed following the specifications below.
-                diff_speed = desired_speed((0.5*149)/(149/2));
+                diff_speed = desired_speed*((0.5*149)/(149/2));
 
-                //left
+                min_diff_speed = (desired_speed*0.1)*((0.5*149)/(149/2));
+                max_diff_speed = (desired_speed*0.5)*(149/(2*0.200))
 
+                //<-- Start Wheel Speed Control -->
+                //For Each Wheel: left
+                desired_speed = desired_speed + diff_speed;
+                if(desired_speed <= min_diff_speed){
+                    desired_speed = 0;
+                    Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_4, desired_speed);
+                }else{
+                    if(desired_speed < 0){
+                        GPIO_setOutputHighOnPin(GPIO_PORT_P5, GPIO_PIN5);
+                    }else if (desired_speed >= 0){
+                        GPIO_setOutputLowOnPin(GPIO_PORT_P5, GPIO_PIN5);
+                    }
+                    speed_error_left = 1500000/TachL_count;
+                    speed_error_leftsum += speed_error_left
+                }
 
 
         }
