@@ -59,11 +59,12 @@ int main( void ) {    /** Main Function ****/
     ADCInit();
     TimerInit();
 
-    ADC14_toggleConversionTrigger();
+   // ADC14_toggleConversionTrigger();
 
     __delay_cycles(24e6);
 
     GPIO_setOutputHighOnPin(GPIO_PORT_P3,GPIO_PIN6|GPIO_PIN7);
+
     printf("Lab 4 Part a \r\n");
     while( 1 ) {
         if(runControl){    // If 100 ms has passed
@@ -78,53 +79,59 @@ int main( void ) {    /** Main Function ****/
                 ADC14_toggleConversionTrigger();
 
                 //Convert the speed potentiometer measurement to a desired speed
-                desired_speed_left = 16384*((3.3 - 0.0)/(speed_val - 0.0));
-                printf("begin desired speed: %5u\r\n", desired_speed_left);
+                //desired_speed_left = 16384*((3.3 - 0.0)/(speed_val - 0.0));
+
+                //desired_speed_left = 16384*((speed_val - 0.0)/(3.3 - 0.0));
+
+                desired_speed_left = speed_val;
+
+                printf("begin desired speed:::::::: %f\r\n", desired_speed_left);
+                printf("SPEED VAL:::::: %f\r\n", speed_val);
                 //Ensure the desired speed follows the control specifications below
                 direc_val_left=16384*((3.3 - 0.0)/(dir_val - 0.0 ));
-                printf("begin direction value: %5u\r\n", direc_val_left);
+                printf("begin direction value: %f\r\n", direc_val_left);
                 //Convert the steering potentiometer measurement to a differential speed following the specifications below.
                 diff_speed_left = desired_speed_left*((0.5*149)/(149/2));
-                printf("begin diff speed: %5u\r\n", diff_speed_left);
+                printf("begin diff speed: %f\r\n", diff_speed_left);
 
                 min_diff_speed_left = .1*65535;
-                printf("min_diff_speed: %5u\r\n", min_diff_speed_left);
+                printf("min_diff_speed: %f\r\n", min_diff_speed_left);
                 max_diff_speed_left = (desired_speed_left*0.5)*(149/(2*0.200));
-                printf("max diff speed: %5u\r\n", max_diff_speed_left);
+                printf("max diff speed: %f\r\n", max_diff_speed_left);
 
 
                 //<-- Start Wheel Speed Control -->
                 //For Each Wheel: left
-                left_speed = desired_speed_left + diff_speed_left;
-                if(left_speed < (.9*8192)){
-                    desired_speed_left=(-1*(m))*left_speed+500;
-                    printf("left speed < min: %5u\r\n", desired_speed_left);
-                }else if(left_speed > (1.1*8192)){
-                    desired_speed_left = m*(8192-(1.1*8192))+100;
-                    printf("left speed > min: %5u\r\n", desired_speed_left);
-                }else{
-                   desired_speed_left = 0;
-                   printf("left speed = 0: %5u\r\n", desired_speed_left);
-                }
-                if(desired_speed_left > 0) {
-                   GPIO_setOutputLowOnPin(GPIO_PORT_P5, GPIO_PIN4);
-               }else if(desired_speed_left > 0){
-                   GPIO_setOutputHighOnPin(GPIO_PORT_P5, GPIO_PIN4);
-               }
-               printf("TachL_count: %5u\r\n", TachL_count);
-               speed_error_left = 1500000/TachL_count;
-               printf("speed_error_left %5u\r\n", speed_error_left);
-               speed_error_leftsum += speed_error_left;
-               printf("speed error sum: %5u\r\n", speed_error_leftsum);
-               correct_speed_left=desired_speed_left + (ki*speed_error_leftsum);
-               printf("correct speed: %5u\r\n", correct_speed_left);
-               compare_value_left=speed_error_left*1000;
-               printf("compare value left: %5u\r\n", compare_value_left);
-               if(compare_value_left < (.10*1000)) {
-                   Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_4, (.10*1000));
-               }else if(compare_value_left > (.9*1000)) {
-                   Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_4, (.90*1000));
-               }
+                    left_speed = desired_speed_left - diff_speed_left;
+
+                    if((fabs(desired_speed_left) > (.9*8192)) && (fabs(desired_speed_left) < (1.1*8192))) {
+                        desired_speed_left = 0.0;
+                           printf("left speed = 0: %f\r\n", desired_speed_left);
+                           Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_4, 0);
+                           printf("STOPPPPPPPP\r\n");
+                    }else if(desired_speed_left < (.9*8192)){
+                        desired_speed_left=(-1*(m))*left_speed+500.0;
+                        GPIO_setOutputHighOnPin(GPIO_PORT_P5, GPIO_PIN4);
+                        printf("left speed < min: %f\r\n", desired_speed_left);
+                        Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_4, desired_speed_left);
+                        printf("REVERSE\r\n");
+                    }else if(desired_speed_left > (1.1*8192)){
+                        desired_speed_left = m*(8192-(1.1*8192))+500;
+                        printf("left speed > min: %f\r\n", desired_speed_left);
+                        GPIO_setOutputLowOnPin(GPIO_PORT_P5, GPIO_PIN4);
+                        Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_4, desired_speed_left);
+                        printf("FORWARD\r\n");
+
+                    }
+                   printf("TachL_count: %d\r\n", TachL_count);
+                   speed_error_left = 1500000.0/TachL_count;
+                   printf("speed_error_left %f\r\n", speed_error_left);
+                   speed_error_leftsum += speed_error_left;
+                   printf("speed error sum: %f\r\n", speed_error_leftsum);
+                   correct_speed_left=desired_speed_left + (ki*speed_error_leftsum);
+                   printf("correct speed: %f\r\n", correct_speed_left);
+                   compare_value_left=speed_error_left*1000.0;
+                   printf("compare value left: %f\r\n", compare_value_left);
 
         }
     }
@@ -153,7 +160,7 @@ void GPIOInit(){
     GPIO_setAsPeripheralModuleFunctionInputPin(GPIO_PORT_P10,GPIO_PIN4|GPIO_PIN5,GPIO_PRIMARY_MODULE_FUNCTION);
 
     GPIO_setOutputLowOnPin(GPIO_PORT_P5,GPIO_PIN4|GPIO_PIN5);   // Motors set to forward
-    GPIO_setOutputLowOnPin(GPIO_PORT_P3,GPIO_PIN6|GPIO_PIN7);   // Motors are OFF
+    GPIO_setOutputHighOnPin(GPIO_PORT_P3,GPIO_PIN6|GPIO_PIN7);   // Motors are OFF
         //potentiometer
 //    GPIO_setAsInputPin(GPIO_PORT_P4,GPIO_PIN1|GPIO_PIN4); //4.4 left (speed), 4.1 to right(steering)
     GPIO_setAsPeripheralModuleFunctionInputPin(GPIO_PORT_P4, GPIO_PIN4, GPIO_TERTIARY_MODULE_FUNCTION); //4.4 left (speed)
