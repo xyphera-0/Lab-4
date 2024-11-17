@@ -81,7 +81,7 @@ int main( void ) {    /** Main Function ****/
 
                 desired_speed_left = speed_val;
                 desired_speed_right = speed_val;
-                
+
 
                 //for left wheel
                 printf("begin desired speed:::::::: %f\r\n", desired_speed_left);
@@ -113,7 +113,7 @@ int main( void ) {    /** Main Function ****/
                     if((fabs(desired_speed_left) > (.9*8192)) && (fabs(desired_speed_left) < (1.1*8192))) {
                         desired_speed_left = 0.0;
                            printf("left speed = 0: %f\r\n", desired_speed_left);
-                           Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_4, 0);
+                           Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_4, desired_speed_left);
                            printf("STOPPPPPPPP\r\n");
                     }else if(desired_speed_left < (.9*8192)){
                         desired_speed_left=(-1*(m))*left_speed+500.0;
@@ -133,13 +133,23 @@ int main( void ) {    /** Main Function ****/
                    correct_speed_left=desired_speed_left + (ki*speed_error_leftsum);
                    compare_value_left=speed_error_left*1000.0;
 
-                   left_wheel = desired_speed_left - diff_speed_left;
-                   if((fabs(dir_val) > (.85*8192)) && (fabs(dir_val) < (1.15*8192))){
-                       
-                   }else if(dir_val < (.85*8192)){
-                       
-                   }else if(dir_val > (1.15*8192)){
-                       
+                   //left_wheel = desired_speed_left - diff_speed_left;
+                   if((fabs(dir_val) > (0.85*8192)) && (fabs(dir_val) < (1.15*8192))){
+                       Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_4, desired_speed_left);
+                   }else if((dir_val < (0.85*8192)) && (desired_speed_left < (.9*8192))){
+                       GPIO_setOutputHighOnPin(GPIO_PORT_P5, GPIO_PIN4);
+                       Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_4, 0);
+                   }else if((dir_val > (1.15*8192)) && (desired_speed_left < (.9*8192))){
+                       desired_speed_left=(-1*(m))*left_speed+500.0;
+                       GPIO_setOutputHighOnPin(GPIO_PORT_P5, GPIO_PIN4);
+                       Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_4, desired_speed_left);
+                   }else if((dir_val < (0.85*8192)) && (desired_speed_left > (1.1*8192))){
+                       GPIO_setOutputLowOnPin(GPIO_PORT_P5, GPIO_PIN4);
+                       Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_4, 0);
+                   }else if((dir_val > (1.15*8192)) && (desired_speed_left > (1.1*8192))){
+                       desired_speed_left=(-1*(m))*left_speed+500.0;
+                       GPIO_setOutputLowOnPin(GPIO_PORT_P5, GPIO_PIN4);
+                       Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_4, desired_speed_left);
                    }
 
                    //<-- Start Wheel Speed Control -->
@@ -149,7 +159,7 @@ int main( void ) {    /** Main Function ****/
                    if((fabs(desired_speed_right) > (.9*8192)) && (fabs(desired_speed_right) < (1.1*8192))) {
                        desired_speed_right = 0.0;
                           printf("right speed = 0: %f\r\n", desired_speed_right);
-                          Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_3, 0);
+                          Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_3, desired_speed_right);
                           printf("STOPPPPPPPP\r\n");
                    }else if(desired_speed_right < (.9*8192)){
                        desired_speed_right=(-1*(m))*right_speed+500.0;
@@ -163,20 +173,33 @@ int main( void ) {    /** Main Function ****/
                        GPIO_setOutputLowOnPin(GPIO_PORT_P5, GPIO_PIN5);
                        Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_3, desired_speed_right);
                        printf("FORWARD\r\n");
-                   
+
                    }
                    speed_error_right = 1500000.0/TachR_count;
                    speed_error_rightsum += speed_error_right;
                    correct_speed_right=desired_speed_right + (ki*speed_error_rightsum);
                    compare_value_right=speed_error_right*1000.0;
 
-                   right_wheel = desired_speed_right + diff_speed_right;
-                   if((fabs(dir_val) > (.85*8192)) && (fabs(dir_val) < (1.15*8192))){
-                       
-                   }else if(dir_val < (.85*8192)){
-                       
-                   }else if(dir_val > (1.15*8192)){
-                       
+                   // try 0.5 times the desired speed to turn
+
+                   //right_wheel = desired_speed_right + diff_speed_right;
+                   float rr = (149/2) + (0.5*149);
+                   if((fabs(dir_val) > (0.85*8192)) && (fabs(dir_val) < (1.15*8192))){
+                       Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_3, desired_speed_right);
+                   }else if((dir_val < (0.85*8192)) && (desired_speed_right < (.9*8192))){
+                       desired_speed_right=(-1*(m))*left_speed+500.0;
+                       GPIO_setOutputHighOnPin(GPIO_PORT_P5, GPIO_PIN4);
+                       Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_3, desired_speed_right);
+                   }else if((dir_val > (1.15*8192)) && (desired_speed_right < (.9*8192))){
+                       GPIO_setOutputHighOnPin(GPIO_PORT_P5, GPIO_PIN4);
+                       Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_3, 0);
+                   }else if((dir_val < (0.85*8192)) && (desired_speed_right > (1.1*8192))){
+                       desired_speed_right=(-1*(m))*left_speed+500.0;
+                       GPIO_setOutputLowOnPin(GPIO_PORT_P5, GPIO_PIN4);
+                       Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_3, desired_speed_right);
+                   }else if((dir_val > (1.15*8192)) && (desired_speed_right > (1.1*8192))){
+                       GPIO_setOutputLowOnPin(GPIO_PORT_P5, GPIO_PIN4);
+                       Timer_A_setCompareValue(TIMER_A0_BASE, TIMER_A_CAPTURECOMPARE_REGISTER_3, 0);
                    }
 
         }
